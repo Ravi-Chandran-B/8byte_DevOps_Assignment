@@ -44,7 +44,7 @@ jobs:
       - name: Lint Kubernetes manifests
         run: |
           pip install yamllint
-          yamllint manifests/ || true
+          yamllint -c .yamllint.yml manifests/ || true
 
   # ---------------------------------------------------------------
   # Scan source for known-vulnerable dependencies before we ever build
