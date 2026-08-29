@@ -1,0 +1,75 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: app-and-db-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack   # must match prometheus's ruleSelector
+spec:
+  groups:
+    - name: application.rules
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Error rate above 5%"
+            description: "5xx error rate has been above 5% for 5 minutes."
+
+        - alert: HighLatencyP95
+          expr: |
+            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "P95 latency above 1s"
+            description: "95th percentile request latency has exceeded 1 second for 5 minutes."
+
+    - name: infrastructure.rules
+      rules:
+        - alert: NodeHighCPU
+          expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node CPU usage high on {{ $labels.instance }}"
+            description: "CPU usage above 85% for 10 minutes."
+
+        - alert: NodeLowDisk
+          expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Low disk space on {{ $labels.instance }}"
+            description: "Less than 15% disk space remaining."
+
+    - name: postgres.rules
+      rules:
+        - alert: PostgresDown
+          expr: pg_up == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL exporter reports DB down"
+            description: "RDS instance is not reachable by postgres_exporter."
+
+        - alert: PostgresHighConnections
+          expr: |
+            sum(pg_stat_activity_count) by (instance)
+            / on(instance)
+            pg_settings_max_connections > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Postgres connection pool nearing max"
+            description: "More than 80% of max_connections in use."

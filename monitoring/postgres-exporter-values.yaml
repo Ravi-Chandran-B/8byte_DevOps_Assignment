@@ -1,0 +1,39 @@
+# values for prometheus-community/prometheus-postgres-exporter
+# https://github.com/prometheus-community/helm-charts/tree/main/charts/prometheus-postgres-exporter
+#
+# RDS is outside the cluster, so we run this exporter as a standalone in-cluster
+# pod that connects OUT to RDS over the private subnet, rather than a sidecar.
+
+config:
+  # DATA_SOURCE_NAME is injected from a k8s Secret (created out-of-band, see commands.sh)
+  # so the RDS password never lands in this file or in git.
+  datasourceSecret:
+    name: rds-postgres-exporter-secret
+    key: data-source-name
+
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  additionalLabels:
+    release: kube-prometheus-stack   # so kube-prometheus-stack's Prometheus picks it up
+  interval: 30s
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Extra queries beyond the exporter's defaults (table bloat, replication lag, etc.)
+extraArgs:
+  - --extend.query-path=/etc/postgres_exporter/queries.yaml
+
+extraVolumes:
+  - name: queries
+    configMap:
+      name: postgres-exporter-queries
+extraVolumeMounts:
+  - name: queries
+    mountPath: /etc/postgres_exporter

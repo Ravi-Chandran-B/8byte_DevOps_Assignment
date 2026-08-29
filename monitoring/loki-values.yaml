@@ -1,0 +1,48 @@
+# values for grafana/loki-stack (bundles Loki + Promtail)
+# https://github.com/grafana/helm-charts/tree/main/charts/loki-stack
+#
+# Chosen over EFK for this assignment because it's far lighter on resources
+# and plugs straight into the same Grafana already deployed by the
+# kube-prometheus-stack release — one pane of glass for metrics + logs.
+
+loki:
+  enabled: true
+  persistence:
+    enabled: true
+    storageClassName: gp2
+    size: 20Gi
+  config:
+    limits_config:
+      retention_period: 336h   # 14 days; tune per cost/compliance needs
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 336h
+
+promtail:
+  enabled: true
+  config:
+    snippets:
+      # ship container stdout/stderr (covers app logs when the app logs to stdout,
+      # which is the 12-factor-app best practice) plus node-level system logs.
+      extraScrapeConfigs: |
+        - job_name: journal
+          journal:
+            path: /var/log/journal
+            max_age: 12h
+            labels:
+              job: systemd-journal
+          relabel_configs:
+            - source_labels: ['__journal__systemd_unit']
+              target_label: 'unit'
+  extraVolumes:
+    - name: journal
+      hostPath:
+        path: /var/log/journal
+  extraVolumeMounts:
+    - name: journal
+      mountPath: /var/log/journal
+      readOnly: true
+
+# NOTE on "access logs": the load balancer (ALB/NLB from Part 1) should have
+# access logging enabled to an S3 bucket. Those aren't container stdout, so
+# they're shipped separately — see the alb-access-logs note in PART3-README.md.

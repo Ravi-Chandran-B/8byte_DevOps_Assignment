@@ -1,0 +1,19 @@
+{
+  "name": "devops-assignment-app",
+  "version": "1.0.0",
+  "description": "Sample app for DevOps assignment - connects to RDS Postgres",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest --detectOpenHandles"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "prom-client": "^15.1.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  }
+}

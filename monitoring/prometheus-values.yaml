@@ -1,0 +1,101 @@
+# values for prometheus-community/kube-prometheus-stack
+# https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
+
+fullnameOverride: kube-prometheus-stack
+
+## ---------- Prometheus ----------
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    # persist TSDB so restarts don't lose history
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+    # let Prometheus discover ServiceMonitors/PodMonitors from ANY namespace,
+    # not just the release namespace (needed to pick up the app's ServiceMonitor)
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    # scrape kube-state-metrics + node-exporter (enabled by default in this chart)
+    externalLabels:
+      cluster: octabyte-app
+      env: staging
+
+## ---------- Alertmanager ----------
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: "slack-notifications"
+      group_by: ["alertname", "severity"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 3h
+      routes:
+        - matchers:
+            - severity = critical
+          receiver: "slack-notifications"
+          continue: true
+    receivers:
+      - name: "slack-notifications"
+        slack_configs:
+          # secret is injected via existing k8s Secret, not hardcoded here (see README)
+          - api_url: ""
+            channel: "#alerts"
+            send_resolved: true
+            title: "{{ .CommonAnnotations.summary }}"
+            text: "{{ .CommonAnnotations.description }}"
+
+## ---------- Grafana ----------
+grafana:
+  adminPassword: "" # left blank on purpose -> set via --set on install (see commands.sh), never commit this
+  persistence:
+    enabled: true
+    storageClassName: gp3
+    size: 5Gi
+  defaultDashboardsEnabled: true
+  service:
+    type: ClusterIP   # exposed via Ingress/ALB, not a public LB directly
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki-gateway.monitoring.svc.cluster.local
+      access: proxy
+      isDefault: false
+
+## ---------- kube-state-metrics / node-exporter ----------
+kubeStateMetrics:
+  enabled: true
+nodeExporter:
+  enabled: true
+
+## Default alerting rules for node/pod resource pressure ship with this chart.
+## Custom app + Postgres alert rules are added via prometheus-rules.yaml (PrometheusRule CRD).

@@ -1,0 +1,33 @@
+# Prereq: the app must expose a /metrics endpoint (e.g. via prom-client / micrometer /
+# prometheus_client) returning http_requests_total, http_request_duration_seconds, etc.
+# This just wires that endpoint into Prometheus's scrape config declaratively.
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: app-servicemonitor
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack   # required: matches serviceMonitorSelector
+spec:
+  namespaceSelector:
+    matchNames:
+      - devops-assignment   # namespace where sample-app actually lives
+  selector:
+    matchLabels:
+      app: sample-app       # matches the Deployment/Service label seen in `kubectl get pods -l app=sample-app`
+  endpoints:
+    - targetPort: 80        # sample-app-svc's port is unnamed, so target it by number instead of name
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+---
+# sample-app-svc (as currently deployed) has an unnamed port:
+#   ports:
+#     - port: 80
+#       targetPort: 80
+# targetPort: 80 above matches it directly — no edit to the Service needed.
+#
+# Optional cleanup for later: naming the port (e.g. "http") in 02-service.yaml
+# lets you reference `port: http` in ServiceMonitors instead of a bare number,
+# which is considered better practice, but isn't required for this to work.
