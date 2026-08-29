@@ -1,6 +1,5 @@
 // Mock the 'pg' Pool BEFORE requiring index.js, so app.js never opens a
 // real DB connection during tests — this is what makes `npm test` work
-// in CI without needing RDS reachable from GitHub Actions runners.
 jest.mock('pg', () => {
   const mPool = {
     query: jest.fn(),
